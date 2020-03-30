@@ -1,0 +1,52 @@
+#!groovy
+
+pipeline {
+    agent any
+    tools {
+        maven 'maven'
+    }
+    environment {
+        // This can be nexus3 or nexus2
+        NEXUS_VERSION = "nexus3"
+        // This can be http or https
+        NEXUS_PROTOCOL = "http"
+        // Where your Nexus is running
+        NEXUS_URL = "nexus3:8081"
+        // Repository where we will upload the artifact
+        NEXUS_REPOSITORY = "repo-erp"
+        // Jenkins credential id to authenticate to Nexus OSS
+        NEXUS_CREDENTIAL_ID = "nexus-credentials"
+    }
+
+    stages {
+        stage("Code Checkout") {
+            steps {
+                git branch: 'master',
+                        url: 'https://github.com/datskill/MSPR-CI.git'
+            }
+        }
+        stage("Building") {
+            steps {
+                sh "mvn clean package"
+                junit '**/target/surefire-reports/*xml'
+            }
+        }
+        stage('Checkstyle') {
+            steps {
+                sh "mvn checkstyle:checkstyle pmd:pmd pmd:cpd com.github.spotbugs:spotbugs-maven-plugin:3.1.7:spotbugs"
+                recordIssues tools: [java(), javaDoc(),
+                                     checkStyle(), spotBugs(pattern: 'target/spotbugsXml.xml'), pmdParser(pattern: 'target/pmd.xml'), cpd(pattern: 'target/cpd.xml'),
+                                     taskScanner(highTags:'FIXME', normalTags:'TODO', includePattern: '**/*.java', excludePattern: 'target/**/*'), ]
+            }
+        }
+        stage('SonarQube analysis') {
+            steps {
+                withSonarQubeEnv(credentialsId: '', installationName: 'sonarqube') {
+                    // You can override the credential to be used
+                    sh 'mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.6.0.1398:sonar'
+                }
+            }
+        }
+    }
+}
+
