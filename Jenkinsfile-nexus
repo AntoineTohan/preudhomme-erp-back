@@ -6,15 +6,10 @@ pipeline {
         maven 'maven' 
     }
     environment {
-            // This can be nexus3 or nexus2
             NEXUS_VERSION = "nexus3"
-            // This can be http or https
             NEXUS_PROTOCOL = "http"
-            // Where your Nexus is running
             NEXUS_URL = "nexus3:8081"
-            // Repository where we will upload the artifact
             NEXUS_REPOSITORY = "repo-erp"
-            // Jenkins credential id to authenticate to Nexus OSS
             NEXUS_CREDENTIAL_ID = "nexus-credentials"
         }
 
@@ -28,9 +23,17 @@ pipeline {
         stage("Building") {
             steps {
                 sh "mvn clean package -DskipTests"
-                //junit '**/build/test-results/test/*.xml'
+                junit '**/build/test-results/test/*.xml'
                 }
             }
+            stage('Checkstyle') {
+            steps {
+                sh "mvn checkstyle:checkstyle pmd:pmd pmd:cpd com.github.spotbugs:spotbugs-maven-plugin:3.1.7:spotbugs"
+                recordIssues tools: [java(), javaDoc(),
+                                     checkStyle(), spotBugs(pattern: 'target/spotbugsXml.xml'), pmdParser(pattern: 'target/pmd.xml'), cpd(pattern: 'target/cpd.xml'),
+                                     taskScanner(highTags:'FIXME', normalTags:'TODO', includePattern: '**/*.java', excludePattern: 'target/**/*'), ]
+            }
+        }
           stage('SonarQube analysis') {
       steps {
     withSonarQubeEnv(credentialsId: '', installationName: 'sonarqube') { // You can override the credential to be used
@@ -41,15 +44,10 @@ pipeline {
    stage("Publish to Nexus OSS") {
               steps {
                   script {
-                      // Read POM xml file using 'readMavenPom' step , this step 'readMavenPom' is included in: https://plugins.jenkins.io/pipeline-utility-steps
                       pom = readMavenPom file: "pom.xml";
-                      // Find built artifact under target folder
                       filesByGlob = findFiles(glob: "target/*.${pom.packaging}");
-                      // Print some info from the artifact found
                       echo "${filesByGlob[0].name} ${filesByGlob[0].path} ${filesByGlob[0].directory} ${filesByGlob[0].length} ${filesByGlob[0].lastModified}"
-                      // Extract the path from the File found
                       artifactPath = filesByGlob[0].path;
-                      // Assign to a boolean response verifying If the artifact name exists
                       artifactExists = fileExists artifactPath;
                       if(artifactExists) {
                           echo "*** File: ${artifactPath}, group: ${pom.groupId}, packaging: ${pom.packaging}, version ${pom.version}";
@@ -62,12 +60,10 @@ pipeline {
                               repository: NEXUS_REPOSITORY,
                               credentialsId: NEXUS_CREDENTIAL_ID,
                               artifacts: [
-                                  // Artifact generated such as .jar, .ear and .war files.
                                   [artifactId: pom.artifactId,
                                   classifier: '',
                                   file: artifactPath,
                                   type: pom.packaging],
-                                  // Lets upload the pom.xml file for additional information for Transitive dependencies
                                   [artifactId: pom.artifactId,
                                   classifier: '',
                                   file: "pom.xml",
