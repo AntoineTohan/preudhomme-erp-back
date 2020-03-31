@@ -9,7 +9,7 @@ pipeline {
         stage("Code Checkout") {
             steps {
                 git branch: 'master',
-                        url: 'https://github.com/datskill/MSPR-CI.git'
+                        url: 'https://github.com/AntoineTohan/preudhomme-erp-back'
             }
         }
         stage("Building") {
