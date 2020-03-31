@@ -22,10 +22,10 @@ pipeline {
               }
         stage("Building") {
             steps {
-                sh "mvn clean package -DskipTests"
-                junit '**/build/test-results/test/*.xml'
-                }
+                sh "mvn clean package"
+                junit '**/target/surefire-reports/*xml'
             }
+        }
             stage('Checkstyle') {
             steps {
                 sh "mvn checkstyle:checkstyle pmd:pmd pmd:cpd com.github.spotbugs:spotbugs-maven-plugin:3.1.7:spotbugs"
